@@ -1,0 +1,22 @@
+[project]
+name = "nayactl"
+version = "0.1.0"
+description = "CLI tool for the Naya Create keyboard"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.0",
+    "pyserial>=3.5",
+]
+
+[project.optional-dependencies]
+zmq = ["pyzmq>=25.0"]
+
+[project.scripts]
+nayactl = "nayactl.cli:cli"
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
