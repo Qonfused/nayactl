@@ -273,7 +273,7 @@ def auto_connect(
 
   If port is specified, connects directly via serial.
   Otherwise, discovers devices by VID/PID.
-  ZMQ transport (Phase 5) will be tried first when prefer_zmq=True.
+  ZMQ transport will be tried first when prefer_zmq=True.
   """
   from .discovery import find_naya_serial_port, find_naya_serial_ports
 
@@ -284,7 +284,7 @@ def auto_connect(
     transport.connect()
     return transport
 
-  # TODO (Phase 5): try ZMQ first if prefer_zmq
+  # TODO: try ZMQ first if prefer_zmq
 
   device = find_naya_serial_port(side)
   if not device:
