@@ -89,7 +89,7 @@ Create Left:
 	Battery:     97%
 	Voltage:     4.173V
 	Module:      Touch
-		FW:        2.2.2
+		Firmware:  2.2.2
 		Battery:   98%
 		Voltage:   4.1895V
 		USB/Qi:    4.5756V

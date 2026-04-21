@@ -154,7 +154,7 @@ def _print_half_status(label: str, info: dict) -> None:
   if module_info:
     click.echo(f"  Module:      {module_info.get('type', 'Unknown')}")
     if "fw_version" in module_info:
-      click.echo(f"    FW:        {module_info['fw_version']}")
+      click.echo(f"    Firmware:  {module_info['fw_version']}")
     if "battery" in module_info:
       click.echo(f"    Battery:   {module_info['battery']}%")
     if "voltage" in module_info:

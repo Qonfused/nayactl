@@ -43,7 +43,7 @@ def register(cli: click.Group) -> None:
     responses = transport.send_command(dest, CAT_MODULE, MOD_GET_FW_VERSION, timeout=2.0)
     for response in responses:
       if response.valid:
-        click.echo(f"  FW:        {format_fw_version(response.payload)}")
+        click.echo(f"  Firmware:  {format_fw_version(response.payload)}")
 
     click.echo("Module battery...")
     responses = transport.send_command(dest, CAT_MODULE, MOD_GET_BATTERY, timeout=2.0)
