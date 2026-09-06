@@ -96,6 +96,14 @@ class SerialTransport(Transport):
     self._ser = None
     self._handshake_done = False
 
+  def _write(self, data: bytes) -> None:
+    """Write and flush, surfacing serial failures (incl. write_timeout) as TransportError."""
+    try:
+      self._ser.write(data)
+      self._ser.flush()
+    except serial.SerialException as e:
+      raise TransportError(f"Write to {self.port} failed: {e}") from e
+
   @property
   def is_connected(self) -> bool:
     return self._ser is not None and self._ser.is_open and self._handshake_done
@@ -131,8 +139,7 @@ class SerialTransport(Transport):
       )
     self._assert_open()
     self._ser.reset_input_buffer()
-    self._ser.write(build_text_command(command))
-    self._ser.flush()
+    self._write(build_text_command(command))
     # Read until the device goes quiet. Some commands (e.g. dump_settings) reply
     # with many CRLF-separated lines, so we must NOT stop at the first newline;
     # instead accumulate until a quiet gap (no data) after having received some.
@@ -212,16 +219,14 @@ class SerialTransport(Transport):
   def _write_and_wait(self, data: bytes, wait: float) -> bytes:
     self._assert_open()
     self._ser.reset_input_buffer()
-    self._ser.write(data)
-    self._ser.flush()
+    self._write(data)
     time.sleep(wait)
     return self._ser.read(4096)
 
   def _send_raw(self, data: bytes, timeout: float) -> list[CDCResponse]:
     self._assert_open()
     self._ser.reset_input_buffer()
-    self._ser.write(data)
-    self._ser.flush()
+    self._write(data)
     frames = self._read_frames(timeout)
     return [parse_response(f) for f in frames]
 

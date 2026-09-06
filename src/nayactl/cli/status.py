@@ -87,7 +87,10 @@ def _query_half(transport: Transport, dest: int, verbose: bool = False) -> dict:
     module_info: dict = {}
     # MODULE_DETECT's payload is presence, not type -- the handshake reply carries the
     # dock-bus address as [01][addr]; fall back to GET_ADDRESS if it did not answer.
-    addr = handshake[1] if handshake is not None and len(handshake) >= 2 else None
+    addr = None
+    if (handshake is not None and len(handshake) >= 2 and
+        handshake[0] == 0x01):
+      addr = handshake[1]
     if addr is None:
       addr_payload = first_payload(transport.send_command(dest, CAT_MODULE, MOD_GET_ADDRESS))
       if verbose and addr_payload is not None:
@@ -172,8 +175,8 @@ def _print_half_status(label: str, info: dict) -> None:
     click.echo(f"  Module:      {module_info.get('type', 'Unknown')}")
     if "address" in module_info:
       docked = module_info.get("docked")
-      click.echo(f"    Address:   {module_info['address']}"
-                 + (f"  ({docked} half)" if docked else ""))
+      side = f"  ({docked} half)" if docked else ""
+      click.echo(f"    Address:   {module_info['address']}{side}")
     if "fw_version" in module_info:
       click.echo(f"    Firmware:  {module_info['fw_version']}")
     if "battery" in module_info:
