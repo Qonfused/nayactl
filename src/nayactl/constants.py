@@ -119,6 +119,49 @@ MODULE_TYPES = {
   5: "Query",
 }
 
+# MODULE_DETECT (0xDE/0x1002) only reports PRESENCE -- it answers 0x01 for any docked module --
+# so keying MODULE_TYPES on its payload labels every module "Touch". The module's type comes from
+# its dock-bus address instead, which SEND_HANDSHAKE (0xDE/0x1001) returns as [01][addr] and
+# GET_ADDRESS (0xDE/0x1007) returns directly.
+#
+# The address carries the type AND the side: bit 0 is the side (0 = left, 1 = right) and the
+# high nibble is a one-hot type bit. Confirmed on real hardware (fw 3.30.1 / 3.41.0) by moving
+# modules between halves:
+#
+#     Touch   0x10 left / 0x11 right
+#     Track   0x20 left / 0x21 right
+#     Tune    0x40 left / 0x41 right
+#     Float   0x80 left / 0x81 right   <- unconfirmed, nobody has one to dock
+#
+# So the type is looked up on the address with the side bit masked off.
+#
+# 0xF0 / 0xF1 (all type bits set) is a transient state: a module at ~0-1% battery that is drawing
+# power from the pogo pins but has not booted yet reports this until it comes up. It is reported
+# as-is rather than mapped to a type.
+MODULE_SIDE_BIT = 0x01
+MODULE_ADDR_TYPES = {
+  0x10: "Touch",
+  0x20: "Track",
+  0x40: "Tune",
+  # 0x80: "Float",
+}
+
+
+def module_side_from_address(addr):
+  """Dock-bus address -> which half the module is docked on."""
+  if addr is None:
+    return None
+  return "right" if addr & MODULE_SIDE_BIT else "left"
+
+
+def module_type_from_address(addr):
+  """Dock-bus address -> module type. Unknown addresses are reported, not guessed."""
+  if addr is None:
+    return "Unknown"
+  base = addr & ~MODULE_SIDE_BIT
+  known = MODULE_ADDR_TYPES.get(base)
+  return known if known else f"Unknown (addr 0x{addr:02X})"
+
 # --- BLE commands (0xBE) ---
 
 BLE_SET_PAIR_ADDRESS      = 0x1001

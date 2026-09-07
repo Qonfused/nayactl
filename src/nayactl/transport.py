@@ -76,7 +76,12 @@ class SerialTransport(Transport):
         parity=serial.PARITY_NONE,
         stopbits=serial.STOPBITS_ONE,
         timeout=0.1,
-        dsrdtr=True,
+        # dsrdtr=True makes Windows gate all output on the device asserting DSR
+        # (fOutxDsrFlow); with no write_timeout the first write then blocks
+        # forever if the CDC device never raises DSR. Disable DSR flow control
+        # and bound writes so a stuck device errors instead of hanging.
+        dsrdtr=False,
+        write_timeout=2.0,
       )
     except serial.SerialException as e:
       raise TransportError(f"Cannot open {self.port}: {e}") from e
@@ -90,6 +95,14 @@ class SerialTransport(Transport):
       self._ser.close()
     self._ser = None
     self._handshake_done = False
+
+  def _write(self, data: bytes) -> None:
+    """Write and flush, surfacing serial failures (incl. write_timeout) as TransportError."""
+    try:
+      self._ser.write(data)
+      self._ser.flush()
+    except serial.SerialException as e:
+      raise TransportError(f"Write to {self.port} failed: {e}") from e
 
   @property
   def is_connected(self) -> bool:
@@ -126,20 +139,21 @@ class SerialTransport(Transport):
       )
     self._assert_open()
     self._ser.reset_input_buffer()
-    self._ser.write(build_text_command(command))
-    self._ser.flush()
-    # Read eagerly — return as soon as we get a complete response
+    self._write(build_text_command(command))
+    # Read until the device goes quiet. Some commands (e.g. dump_settings) reply
+    # with many CRLF-separated lines, so we must NOT stop at the first newline;
+    # instead accumulate until a quiet gap (no data) after having received some.
     buf = bytearray()
     start = time.time()
+    last_data = 0.0
+    quiet_gap = 0.4
     while time.time() - start < timeout:
       chunk = self._ser.read(256)
       if chunk:
         buf.extend(chunk)
-        # Text responses end with \r\n — if we have one, we're done
-        if b"\r\n" in buf or b"\n" in buf:
-          break
-      elif buf:
-        break  # got data, no more coming
+        last_data = time.time()
+      elif buf and (time.time() - last_data) >= quiet_gap:
+        break  # response complete: got data, then silence
     if buf:
       try:
         return buf.decode("ascii", errors="replace")
@@ -205,16 +219,14 @@ class SerialTransport(Transport):
   def _write_and_wait(self, data: bytes, wait: float) -> bytes:
     self._assert_open()
     self._ser.reset_input_buffer()
-    self._ser.write(data)
-    self._ser.flush()
+    self._write(data)
     time.sleep(wait)
     return self._ser.read(4096)
 
   def _send_raw(self, data: bytes, timeout: float) -> list[CDCResponse]:
     self._assert_open()
     self._ser.reset_input_buffer()
-    self._ser.write(data)
-    self._ser.flush()
+    self._write(data)
     frames = self._read_frames(timeout)
     return [parse_response(f) for f in frames]
 
