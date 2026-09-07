@@ -32,15 +32,14 @@ from .context import TransportContext, pass_ctx
 from .responses import first_payload
 
 
-# Module voltages are carried internally in units of 0.1 mV (so 42000 == 4.2 V), which is what
-# MODULE_GET_BATTERY reports natively. MODULE_GET_PRECISE_BATTERY reports plain millivolts instead:
-# sent back to back to the same module, it answers 0x1038 (4152) while MODULE_GET_BATTERY answers
-# 0xA1CF (41423). The old code fed the precise value straight into the 0.1 mV maths, rendering a
-# full module as 0.41 V / 1%.
+# Module voltages are carried internally in units of 0.1 mV (so 42000 == 4.2 V), which is the
+# unit MODULE_GET_BATTERY reports. MODULE_GET_PRECISE_BATTERY reports plain millivolts instead:
+# sent back to back to the same module, it answers 0x1038 (4152 mV) while MODULE_GET_BATTERY
+# answers 0xA1CF (41423 in 0.1 mV).
 #
-# The precise value is sniffed rather than blindly multiplied by 10: no real cell reads below
-# 1.0 V, so anything under 10000 is unambiguously millivolts. That keeps the fix a no op if an
-# older module firmware turns out to report the precise value in 0.1 mV already.
+# The precise reading is converted on value rather than by firmware version. No real cell reads
+# below 1.0 V or above 10 V, so a value under 10000 can only be millivolts and a value at or
+# above 10000 can only be 0.1 mV.
 MODULE_VOLTAGE_MV_LIMIT = 10000
 
 
