@@ -32,6 +32,29 @@ from .context import TransportContext, pass_ctx
 from .responses import first_payload
 
 
+# Module voltages are carried internally in units of 0.1 mV (so 42000 == 4.2 V), which is what
+# MODULE_GET_BATTERY reports natively. MODULE_GET_PRECISE_BATTERY reports plain millivolts instead:
+# sent back to back to the same module, it answers 0x1038 (4152) while MODULE_GET_BATTERY answers
+# 0xA1CF (41423). The old code fed the precise value straight into the 0.1 mV maths, rendering a
+# full module as 0.41 V / 1%.
+#
+# The precise value is sniffed rather than blindly multiplied by 10: no real cell reads below
+# 1.0 V, so anything under 10000 is unambiguously millivolts. That keeps the fix a no op if an
+# older module firmware turns out to report the precise value in 0.1 mV already.
+MODULE_VOLTAGE_MV_LIMIT = 10000
+
+
+def _precise_voltage_to_tenth_mv(raw: int) -> int:
+  """Convert a MODULE_GET_PRECISE_BATTERY reading (mV) to the internal 0.1 mV unit."""
+  return raw * 10 if 0 < raw < MODULE_VOLTAGE_MV_LIMIT else raw
+
+
+def _module_battery_percent(voltage: int) -> int:
+  """Map a 0.1 mV cell voltage onto 1-100% over the 3.3 V - 4.2 V window."""
+  clamped = max(33000, min(42000, voltage))
+  return max(1, min(100, ((clamped - 33000) * 100) // 9000))
+
+
 def _query_half(transport: Transport, dest: int, verbose: bool = False) -> dict:
   """Query a single keyboard half for its status and module info."""
   info: dict = {}
@@ -112,12 +135,11 @@ def _query_half(transport: Transport, dest: int, verbose: bool = False) -> dict:
     if module_payload is not None and len(module_payload) >= 2:
       if verbose:
         click.echo(f"  [raw] MODULE_PRECISE_BATTERY: {hexline(module_payload)}")
-      voltage = (module_payload[0] << 8) | module_payload[1]
+      voltage = _precise_voltage_to_tenth_mv((module_payload[0] << 8) | module_payload[1])
       valid = (module_payload[2] == 0) if len(module_payload) >= 3 else True
       if valid and voltage > 0:
         module_info["voltage"] = voltage
-        clamped = max(33000, min(42000, voltage))
-        module_info["battery"] = max(1, min(100, ((clamped - 33000) * 100) // 9000))
+        module_info["battery"] = _module_battery_percent(voltage)
 
     if "battery" not in module_info:
       batt_voltages = []
@@ -134,8 +156,7 @@ def _query_half(transport: Transport, dest: int, verbose: bool = False) -> dict:
         batt_voltages.sort()
         raw_voltage = batt_voltages[len(batt_voltages) // 2]
         if raw_voltage > 0:
-          clamped = max(33000, min(42000, raw_voltage))
-          module_info["battery"] = max(1, min(100, ((clamped - 33000) * 100) // 9000))
+          module_info["battery"] = _module_battery_percent(raw_voltage)
           module_info["voltage"] = raw_voltage
         if verbose:
           click.echo(
