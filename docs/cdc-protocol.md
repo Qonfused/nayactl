@@ -165,3 +165,38 @@ These are sent over the CDC serial port as ASCII:
 - `clear_bonds` — clear all BLE bonds
 - `dump_settings` — dump device settings
 - `force_touch_start` — force touch module start
+
+## 0xED — LED Command Payloads
+
+Reconstructed from `ProtocolCDCProcessWorker::_constructLEDMessages` in
+NayaCore v6.11.0 (macOS build, unstripped).
+
+Every command in this category takes a **target byte first**. NayaCore appends
+`params[0][0]` to a "static payload", appends the command-specific data to a
+"dynamic payload", and the message queue concatenates the two — so the wire
+payload is `[target] + [data...]`.
+
+| Command | Params | Wire payload | Range checks |
+|---------|--------|--------------|--------------|
+| `LEDS_ON` / `OFF` / `TOGGLE` / `HALT` / `RESUME` / `EFFECT_CYCLE` | 1 | `[target]` | — |
+| `LEDS_INC` / `LEDS_DEC` | 2 | `[target, amount]` | amount < 101 |
+| `LED_ADJ_BRT` | 2 | `[target, brightness]` | brightness 0..100 |
+| `SEL_LEDS_EFF` | 2 | `[target, effect_id]` | effect_id < count |
+| `LEDS_HUE_SAT` | 4 | `[target, hue_lo, hue_hi, sat]` | hue < 361, sat < 101 |
+| `LEDS_RGB_BRT` | 5 | `[target, p1, p2, p3, brightness]` | brightness < 101 |
+
+Out-of-range values are **clamped to 100 with a warning, not rejected**, so a
+bad value still produces a valid-looking message.
+
+The meaning of the target byte is not yet established.
+
+Two traps worth knowing:
+
+- **Acks do not confirm application.** A well-formed frame carrying nonsense
+  parameters returns the same ack as a valid one. An ack proves the frame
+  parsed, nothing more. Verify LED changes by looking at the board.
+- **A missing target is rejected host-side**, not on the wire: sending a
+  command with an empty payload trips "Missing or empty target parameter for
+  LED command" inside NayaCore, so the firmware never sees it.
+
+Payloads are chunked at 242 bytes, with a hard limit of 257.
