@@ -16,6 +16,7 @@ from .led import register as register_led
 from .listen import register as register_listen
 from .module import register as register_module
 from .raw import register as register_raw
+from .remap import register as register_remap
 from .scan import register as register_scan
 from .status import register as register_status
 from .text import register as register_text
@@ -52,4 +53,5 @@ register_led(cli)
 register_keyscan(cli)
 register_text(cli)
 register_raw(cli)
+register_remap(cli)
 register_listen(cli)
